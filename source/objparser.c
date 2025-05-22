@@ -5,11 +5,12 @@
 #include "thirdparty/vec.h"
 
 
-
 static int32_t parseint(Str s);
 static float parseflot(Str s);
-static Vert parsevert(Str s);
+static Vert parsevert(Str s, int type);
 static Face parseface(Str s, ptrdiff_t nverts, ptrdiff_t nnorms, ptrdiff_t ntexs);
+
+static int compareVertex(Mesh mesh, Model model, int index);
 
 Model loadObjFromFile(const char *path)
 {
@@ -46,13 +47,13 @@ Model loadObjFromFile(const char *path)
     // look to see if str header can be implemented without breaking to many things
     // add rest of obj parser :)
     // should be done my tomorrow. i hope 
-    float *pos_verts =  vector_create();
-    float *tex_verts = vector_create();
-    float *norm_verts = vector_create();
+    Vert *pos_verts =  vector_create();
+    Vert *uv_verts = vector_create();
+    Vert *norm_verts = vector_create();
 
     Face *_tmp_indices_vec = vector_create();
 
-    ptrdiff_t pos_indices_index = 0;
+    int pos_indices_index = 0;
 
     lines.tail = obj;
     while(lines.tail.len)
@@ -62,62 +63,164 @@ Model loadObjFromFile(const char *path)
         Str kind = fields.head;
         if(equals(S("v"), kind))
         {
-            Cut c = cut(trimleft(fields.tail), ' ');
-            vector_add(&pos_verts, parseflot(c.head));
-            c = cut(trimleft(c.tail), ' ');
-            vector_add(&pos_verts, parseflot(c.head));
-            c = cut(trimleft(c.tail), ' ');
-            vector_add(&pos_verts, parseflot(c.head));
-
+            vector_add(&pos_verts, parsevert(fields.tail, 0));
             m.nverts = vector_size(pos_verts);
         }else if(equals(S("vn"), kind))
         {
-            Cut c = cut(trimleft(fields.tail), ' ');
-            vector_add(&norm_verts, parseflot(c.head));
-            c = cut(trimleft(c.tail), ' ');
-            vector_add(&norm_verts, parseflot(c.head));
-            c = cut(trimleft(c.tail), ' ');
-            vector_add(&norm_verts, parseflot(c.head));
-
+            vector_add(&norm_verts, parsevert(fields.tail, 0));
             m.nnorms = vector_size(norm_verts);
         }else if(equals(S("vt"), kind))
         {
-            Cut c = cut(trimleft(fields.tail), ' ');
-            vector_add(&tex_verts, parseflot(c.head));
-            c = cut(trimleft(c.tail), ' ');
-            vector_add(&tex_verts, parseflot(c.head));
-            m.ntexs = vector_size(tex_verts);
+            vector_add(&uv_verts, parsevert(fields.tail, 1));
+            m.nuvs = vector_size(uv_verts);
         }
         else if(equals(S("f"), kind))
         {
             pos_indices_index++;
-            vector_add(&_tmp_indices_vec,parseface(fields.tail, m.nverts, m.nnorms, m.ntexs));
+            vector_add(&_tmp_indices_vec,parseface(fields.tail, m.nverts, m.nnorms, m.nuvs));
         }
     }
 
+    unsigned int *vertex_indices = vector_create();
+    unsigned int *normal_indices = vector_create();
+    unsigned int *uv_indices = vector_create();
 
-    printf("nVerts: %lld\n", m.nverts);
-    printf("nNorms: %lld\n", m.nnorms);
-    printf("nTexts: %lld\n", m.ntexs);
-    unsigned int *sort_indices = vector_create();
-    for(ptrdiff_t f = 0; f < pos_indices_index; f++)
+    Vert *out_vertex = vector_create();
+    Vert *out_norm = vector_create();
+    Vert *out_uv = vector_create();
+
+    for(int f = 0; f < pos_indices_index; f++)
     {
         for(int i =0; i < 3; i++)
         {
-            vector_add(&sort_indices, _tmp_indices_vec[f].v[i]-1);
+            vector_add(&vertex_indices, _tmp_indices_vec[f].v[i]-1);
+            vector_add(&normal_indices, _tmp_indices_vec[f].n[i]-1);
+            vector_add(&uv_indices, _tmp_indices_vec[f].t[i]-1);
+        }
+    }
+
+    int vertex_indices_size = vector_size(vertex_indices);
+    m.n_face = vertex_indices_size;
+    vector_free(_tmp_indices_vec);
+
+
+    for(int v = 0; v < vertex_indices_size; v+=3)
+    {
+        for(int i = 0; i < 3; i+=1)
+        {
+            int vertex_indices_index = vertex_indices[v+i];
+            int normal_indices_index = normal_indices[v+i];
+            int uv_indices_index = uv_indices[v+i];
+
+
+
+            vector_add(&out_vertex, pos_verts[vertex_indices_index]);
+            vector_add(&out_norm, norm_verts[normal_indices_index]);
+            vector_add(&out_uv, uv_verts[uv_indices_index]);
+        }
+    }
+
+    m.out_verts = out_vertex;
+    m.out_norms = out_norm;
+    m.out_uvs = out_uv;
+
+
+    free(f_content);
+    vector_free(vertex_indices);
+    vector_free(normal_indices);
+    vector_free(uv_indices);
+
+    vector_free(pos_verts);
+
+    vector_free(norm_verts);
+
+    vector_free(uv_verts);
+
+    return m;
+}
+
+
+
+Mesh createMeshFromModel(Model m)
+{
+    Mesh mesh = {0};
+
+    unsigned int *out_indices = vector_create();
+
+    Vert *out_vertex = vector_create();
+    Vert *out_norm = vector_create();
+    Vert *out_uv = vector_create();
+    int found_index = -1;
+    /*
+    vector_add(&out_vertex, m.out_verts[0]);
+    vector_add(&out_norm, m.out_norms[0]);
+    vector_add(&out_uv, m.out_uvs[0]);*/
+
+    mesh.out_verts = out_vertex;
+    mesh.out_norms = out_norm;
+    mesh.out_uvs = out_uv;
+
+    float *packed_vertex = vector_create();
+
+
+    for(int i = 0; i < m.nverts; i++)
+    {
+        for (int j =0; j < 3; j++)
+        {
+            vector_add(&packed_vertex,  m.out_verts[i].v[j]);
         }
     }
 
 
-    m.nfaces = vector_size(sort_indices);
-    printf("nFaces: %lld\n", m.nfaces);
-    m.verts = pos_verts;
-    m.pos_indices = sort_indices;
+    for(int i =0; i < m.n_face; i++)
+    {
+        if(compareVertex(mesh, m, i))
+        {
+            vector_add(&out_indices, i);
+            mesh.indices = out_indices;
+        }else
+        {
+            vector_add(&out_vertex, m.out_verts[i]);
+            vector_add(&out_norm, m.out_norms[i]);
+            vector_add(&out_uv, m.out_uvs[i]);
 
-    //printf("%f\n", m.verts->v[0]);
-    free(f_content);
 
-    return m;
+
+            mesh.out_verts = out_vertex;
+            mesh.out_norms = out_norm;
+            mesh.out_uvs = out_uv;
+
+            mesh.nverts = vector_size(out_vertex);
+            mesh.nnorms = vector_size(out_norm);
+            mesh.nuvs = vector_size(out_uv);
+
+            vector_add(&out_indices,  mesh.nverts -1);
+            mesh.indices = out_indices;
+
+            mesh.indices_num = vector_size(out_indices);
+        }
+    }
+
+
+    return mesh;
+}
+
+static int compareVertex(Mesh mesh, Model model, int index)
+{
+    return
+    (
+        mesh.out_verts[index].v[0] == model.out_verts[index].v[0] &&
+        mesh.out_verts[index].v[1] == model.out_verts[index].v[1] &&
+        mesh.out_verts[index].v[2] == model.out_verts[index].v[2] &&
+        
+        mesh.out_norms[index].v[0] == model.out_norms[index].v[0] &&
+        mesh.out_norms[index].v[1] == model.out_norms[index].v[1] &&
+        mesh.out_norms[index].v[2] == model.out_norms[index].v[2] &&
+
+        mesh.out_uvs[index].t[0] == model.out_uvs[index].t[0] &&
+        mesh.out_uvs[index].t[1] == model.out_uvs[index].t[1] &&
+        mesh.out_uvs[index].t[2] == model.out_uvs[index].t[2]
+    );
 }
 
 static int32_t parseint(Str s)
@@ -171,9 +274,10 @@ static float parseflot(Str s)
     return sign * r * (exp ? exp: 1.0f);
 }
 
-static Vert parsevert(Str s)
+static Vert parsevert(Str s, int type)
 {
     Vert r = {0};
+
     Cut c = cut(trimleft(s), ' ');
     r.v[0] = parseflot(c.head);
     c = cut(trimleft(c.tail), ' ');

@@ -9,6 +9,10 @@
 #include "backbone/objparser.h"
 
 #include "linmath.h"
+#include "thirdparty/vec.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include <thirdparty/stb_image.h>
 
 void error_callback(int error, const char* description);
 
@@ -42,25 +46,6 @@ int main(int argc, char **argv)
     glfwSwapInterval(1);
     
 
-
-    float vertices[]=
-    {
-        1.000000, -1.000000, -1.000000,
-        1.000000, -1.000000, 1.000000,
-       -1.000000, -1.000000, 1.000000,
-       -1.000000, -1.000000, -1.000000,
-       1.000000, 1.000000, -1.000000,
-       0.999999, 1.000000, 1.000001,
-       -1.000000, 1.000000, 1.000000,
-       -1.000000, 1.000000, -1.000000,
-    };
-
-    unsigned int indices[] =
-    {
-        0, 1, 3,   // first triangle
-        1, 2, 3    // second triangle
-    };  
-
     //load basic shader
     unsigned int vertexShader = loadShader("bin/assets/vertex.vs", GL_VERTEX_SHADER);
     unsigned int fragmentShader = loadShader("bin/assets/fragment.fs", GL_FRAGMENT_SHADER);
@@ -74,47 +59,86 @@ int main(int argc, char **argv)
 
     deleteShader(vertexShader);
     deleteShader(fragmentShader);
+
     //end of load basic shader
-    Model m = loadObjFromFile("bin/models/osaka.obj");
-    Model m1 = loadObjFromFile("bin/models/monkey.obj");
+    Model m = loadObjFromFile("bin/models/cube.obj");
+    Mesh mesh = createMeshFromModel(m);
 
-    unsigned int VBO[2], VAO[2], EBO[2];
-    glGenVertexArrays(2, VAO);
-    glGenBuffers(2, VBO);
-    glGenBuffers(2, EBO);
+    unsigned int VAO, EBO;
+    glGenVertexArrays(1, &VAO);
+    glGenBuffers(1, &EBO);
 
+    glBindVertexArray(VAO);
 
-    glBindVertexArray(VAO[0]);
+    float *packed_vertex = vector_create();
+    float *packed_uv = vector_create();
+    float *packed_normal = vector_create();
+
+    for(int i = 0; i < mesh.nverts; i++)
+    {
+        for (int j =0; j < 3; j++)
+        {
+            vector_add(&packed_vertex,  mesh.out_verts[i].v[j]);
+            vector_add(&packed_uv,  mesh.out_verts[i].t[j]);
+            vector_add(&packed_normal,  mesh.out_norms[i].v[j]);
+        }
+    }
+
+    unsigned vertex_buffer;
+    glGenBuffers(1, &vertex_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
     
-    glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
-
-
-    glBufferData(GL_ARRAY_BUFFER, m.nverts* sizeof(float), &m.verts[0], GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO[0]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m.nfaces * sizeof(GL_UNSIGNED_INT), &m.pos_indices[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_vertex) * sizeof(float), &packed_vertex[0], GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-    glBindVertexArray(0);
-
-    glBindVertexArray(VAO[1]);
     
-    glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+    unsigned uv_buffer;
+    glGenBuffers(1, &uv_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, uv_buffer);
+
+    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_uv) * sizeof(float), &packed_vertex[0], GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+    unsigned int texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    int width, height, nrChannels;
+    unsigned char *data = stbi_load("bin/images/wall.jpg", &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    /*
+    unsigned norm_buffer;
+    glGenBuffers(1, &norm_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, norm_buffer);
+
+    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_normal) * sizeof(float), &packed_normal[0], GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(3);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);*/
 
 
-    glBufferData(GL_ARRAY_BUFFER, m1.nverts* sizeof(float), &m1.verts[0], GL_STATIC_DRAW);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices_num * sizeof(GL_UNSIGNED_INT),& mesh.indices[0], GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO[1]);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, m1.nfaces * sizeof(GL_UNSIGNED_INT), &m1.pos_indices[0], GL_STATIC_DRAW);
 
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
-    glBindVertexArray(0);
-    
+    //glBindVertexArray(0);
 
+    printf("vertex count %lld\n", m.nverts);
+    printf("norm count %lld\n", m.nnorms);
+    printf("uv count %lld\n", m.nuvs);
 
 
     while(!glfwWindowShouldClose(window))
@@ -124,7 +148,8 @@ int main(int argc, char **argv)
         glViewport(0, 0, width, height);
 
         glClearColor(0.2f, 0.3f,0.3f,1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        glEnable(GL_DEPTH_TEST);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         mat4x4 view;
         mat4x4_identity(view);
@@ -134,17 +159,15 @@ int main(int argc, char **argv)
         mat4x4_identity(projection);
         mat4x4_perspective(projection, 45.0f, width / height, 0.1f, 100.0f);
 
-
-
+    
         unsigned int ViewLoc = glGetUniformLocation(shaderProgram, "view");
         glUniformMatrix4fv(ViewLoc, 1, GL_FALSE, (float*)view);
 
         unsigned int ProjectionLoc = glGetUniformLocation(shaderProgram, "projection");
         glUniformMatrix4fv(ProjectionLoc, 1, GL_FALSE, (float*)projection);
-
-        glUseProgram(shaderProgram);
-
-        glBindVertexArray(VAO[0]);
+        
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glBindVertexArray(VAO);
         mat4x4 model;
         mat4x4_identity(model);
         mat4x4_translate(model, -1.0f, 0.0f, 0.0f); 
@@ -154,20 +177,11 @@ int main(int argc, char **argv)
         unsigned int ModelLoc = glGetUniformLocation(shaderProgram, "model");
         glUniformMatrix4fv(ModelLoc, 1, GL_FALSE, (float*)model);
 
-        glDrawElements(GL_TRIANGLES, m.nfaces, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, mesh.indices_num, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
 
-        glBindVertexArray(VAO[1]);
-        mat4x4 model1;
-        mat4x4_identity(model1);
-        mat4x4_rotate(model1, model1, 0.3f, 1.0f, 0.0f, (float)glfwGetTime() * 2.0f);
-        mat4x4_scale_aniso(model1, model1, 0.4f, 0.4f, 0.4f);
 
-        unsigned int ModelLoc1 = glGetUniformLocation(shaderProgram, "model");
-        glUniformMatrix4fv(ModelLoc1, 1, GL_FALSE, (float*)model1);
-        glDrawElements(GL_TRIANGLES, m1.nfaces, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
+        glUseProgram(shaderProgram);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
