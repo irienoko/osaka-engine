@@ -291,6 +291,7 @@ static vec2_vert parse_vec2_vert(Str s)
     r.v[0] = parseflot(c.head);
     c = cut(trimleft(c.tail), ' ');
     r.v[1] = parseflot(c.head);
+    r.v[1] = -r.v[1];
 
     return r;
 }

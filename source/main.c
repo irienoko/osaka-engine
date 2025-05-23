@@ -88,11 +88,8 @@ int main(int argc, char **argv)
         for(int k = 0; k < 2; k++)
         {
             vector_add(&packed_uv,  mesh.out_uvs[i].v[k]);
-            printf("%f\n",  mesh.out_uvs[i].v[k]);
         }
     }
-
-
 
     unsigned vertex_buffer;
     glGenBuffers(1, &vertex_buffer);
