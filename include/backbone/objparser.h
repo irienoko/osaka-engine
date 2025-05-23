@@ -43,7 +43,7 @@ typedef struct
     ptrdiff_t nuvs;
 
     ptrdiff_t indices_num;
-}Mesh;
+}Mesh_index;
 
 typedef struct
 {
@@ -59,7 +59,7 @@ typedef struct
 }Model;
 
 Model loadObjFromFile(const char *path);
-Mesh createMeshFromModel(Model m);
+Mesh_index indexVBO(Model m);
 
 
 

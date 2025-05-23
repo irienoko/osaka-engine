@@ -7,12 +7,10 @@
 
 #include "backbone/shader.h"
 #include "backbone/objparser.h"
+#include "backbone/mesh.h"
 
 #include "linmath.h"
 #include "thirdparty/vec.h"
-
-#define STB_IMAGE_IMPLEMENTATION
-#include <thirdparty/stb_image.h>
 
 void error_callback(int error, const char* description);
 
@@ -61,82 +59,12 @@ int main(int argc, char **argv)
     deleteShader(fragmentShader);
 
     //end of load basic shader
-    Model m = loadObjFromFile("bin/models/glock_oclock.obj");
-    Mesh mesh = createMeshFromModel(m);
-
-    unsigned int VAO, EBO;
-    glGenVertexArrays(1, &VAO);
-    glGenBuffers(1, &EBO);
-
-    glBindVertexArray(VAO);
-
-    float *packed_vertex = vector_create();
-    float *packed_uv = vector_create();
-    float *packed_normal = vector_create();
-
-    for(int i = 0; i < mesh.nverts; i++)
-    {
-        for (int j =0; j < 3; j++)
-        {
-            vector_add(&packed_vertex,  mesh.out_verts[i].v[j]);
-            vector_add(&packed_normal,  mesh.out_norms[i].v[j]);
-        }
-    }
-
-    for(int i = 0; i < mesh.nuvs; i++)
-    {
-        for(int k = 0; k < 2; k++)
-        {
-            vector_add(&packed_uv,  mesh.out_uvs[i].v[k]);
-        }
-    }
-
-    unsigned vertex_buffer;
-    glGenBuffers(1, &vertex_buffer);
-    glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer);
-    
-    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_vertex) * sizeof(float), &packed_vertex[0], GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-    
-    unsigned uv_buffer;
-    glGenBuffers(1, &uv_buffer);
-    glBindBuffer(GL_ARRAY_BUFFER, uv_buffer);
-
-    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_uv) * sizeof(float), &packed_uv[0], GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(2);
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-
-    unsigned int texture;
-    glGenTextures(1, &texture);
-    glBindTexture(GL_TEXTURE_2D, texture);
-
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);	
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    int width, height, nrChannels;
-    unsigned char *data = stbi_load("bin/images/glock_oclock_tex.jpg", &width, &height, &nrChannels, 0);
-    if (data)
-    {
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-        glGenerateMipmap(GL_TEXTURE_2D);
-    }
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices_num * sizeof(GL_UNSIGNED_INT),& mesh.indices[0], GL_STATIC_DRAW);
 
 
-
-    //glBindVertexArray(0);
-
-    printf("vertex count %lld\n", m.nverts);
-    printf("norm count %lld\n", m.nnorms);
-    printf("uv count %lld\n", m.nuvs);
-
+    Model orange = loadObjFromFile("bin/models/teto_orange.obj");
+    Mesh_index orange_mesh = indexVBO(orange);
+    Mesh *orange_packed_mesh = createPackedMesh(orange_mesh);
+    opengl_data orange_obj = setUpMesh(orange_packed_mesh, "bin/images/teto_orange.jpg");
 
     while(!glfwWindowShouldClose(window))
     {
@@ -147,6 +75,8 @@ int main(int argc, char **argv)
         glClearColor(0.2f, 0.3f,0.3f,1.0f);
         glEnable(GL_DEPTH_TEST);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        glUseProgram(shaderProgram);
 
         mat4x4 view;
         mat4x4_identity(view);
@@ -162,23 +92,20 @@ int main(int argc, char **argv)
 
         unsigned int ProjectionLoc = glGetUniformLocation(shaderProgram, "projection");
         glUniformMatrix4fv(ProjectionLoc, 1, GL_FALSE, (float*)projection);
-        
-        glBindTexture(GL_TEXTURE_2D, texture);
-        glBindVertexArray(VAO);
-        mat4x4 model;
-        mat4x4_identity(model);
-        mat4x4_translate(model, -1.0f, 0.0f, 0.0f); 
-        mat4x4_rotate(model, model, 0.3f, 1.0f, 0.0f, (float)glfwGetTime() * 1.0f);
-        mat4x4_scale_aniso(model, model, 0.4f, 0.4f, 0.4f);
 
-        unsigned int ModelLoc = glGetUniformLocation(shaderProgram, "model");
-        glUniformMatrix4fv(ModelLoc, 1, GL_FALSE, (float*)model);
+        glBindTexture(GL_TEXTURE_2D, orange_obj.texture);
+        mat4x4 model1;
+        mat4x4_identity(model1);
+        mat4x4_translate(model1, 1.0f, 0.0f, 0.0f); 
+        mat4x4_rotate(model1, model1, 0.3f, 1.0f, 0.0f, (float)glfwGetTime() * 1.0f);
+        mat4x4_scale_aniso(model1, model1, 0.4f, 0.4f, 0.4f);
 
-        glDrawElements(GL_TRIANGLES, mesh.indices_num, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        unsigned int ModelLoc1 = glGetUniformLocation(shaderProgram, "model");
+        glUniformMatrix4fv(ModelLoc1, 1, GL_FALSE, (float*)model1);
+        drawMesh(orange_packed_mesh, orange_obj);
 
 
-        glUseProgram(shaderProgram);
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();

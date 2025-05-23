@@ -18,7 +18,7 @@ static vec2_vert parse_vec2_vert(Str s);
 
 static Face parseface(Str s, ptrdiff_t nverts, ptrdiff_t nnorms, ptrdiff_t ntexs);
 
-static int compareVertex(Mesh mesh, Model model, int index);
+static int compareVertex(Mesh_index mesh, Model model, int index);
 
 Model loadObjFromFile(const char *path)
 {
@@ -154,9 +154,9 @@ Model loadObjFromFile(const char *path)
 
 
 
-Mesh createMeshFromModel(Model m)
+Mesh_index indexVBO(Model m)
 {
-    Mesh mesh = {0};
+    Mesh_index mesh = {0};
 
     unsigned int *out_indices = vector_create();
 
@@ -216,7 +216,7 @@ Mesh createMeshFromModel(Model m)
     return mesh;
 }
 
-static int compareVertex(Mesh mesh, Model model, int index)
+static int compareVertex(Mesh_index mesh, Model model, int index)
 {
     return
     (
