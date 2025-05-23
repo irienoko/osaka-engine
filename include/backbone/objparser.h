@@ -10,8 +10,12 @@
 typedef struct
 {
     float v[3];
-    float t[3];
-}Vert;
+}vec3_vert;
+
+typedef struct
+{
+    float v[2];
+}vec2_vert;
 
 typedef struct
 {
@@ -28,9 +32,9 @@ typedef struct
 
 typedef struct
 {
-    Vert *out_verts;
-    Vert *out_norms;
-    Vert *out_uvs;
+    vec3_vert *out_verts;
+    vec3_vert *out_norms;
+    vec2_vert *out_uvs;
 
     unsigned int *indices;
 
@@ -43,9 +47,9 @@ typedef struct
 
 typedef struct
 {
-    Vert *out_verts;
-    Vert *out_norms;
-    Vert *out_uvs;
+    vec3_vert *out_verts;
+    vec3_vert *out_norms;
+    vec2_vert *out_uvs;
 
     ptrdiff_t nverts;
     ptrdiff_t nnorms;

@@ -7,7 +7,15 @@
 
 static int32_t parseint(Str s);
 static float parseflot(Str s);
-static Vert parsevert(Str s, int type);
+
+
+static vec3_vert parse_vec3_vert(Str s);
+static vec2_vert parse_vec2_vert(Str s);
+
+
+//TODO:
+// removing duplicates
+
 static Face parseface(Str s, ptrdiff_t nverts, ptrdiff_t nnorms, ptrdiff_t ntexs);
 
 static int compareVertex(Mesh mesh, Model model, int index);
@@ -41,15 +49,14 @@ Model loadObjFromFile(const char *path)
     obj.len = fsize;
 
 
-
-
     //REMEMBER
     // look to see if str header can be implemented without breaking to many things
     // add rest of obj parser :)
     // should be done my tomorrow. i hope 
-    Vert *pos_verts =  vector_create();
-    Vert *uv_verts = vector_create();
-    Vert *norm_verts = vector_create();
+    vec3_vert *pos_verts =  vector_create();
+    vec3_vert *norm_verts = vector_create();
+
+    vec2_vert *uv_verts = vector_create();
 
     Face *_tmp_indices_vec = vector_create();
 
@@ -63,15 +70,15 @@ Model loadObjFromFile(const char *path)
         Str kind = fields.head;
         if(equals(S("v"), kind))
         {
-            vector_add(&pos_verts, parsevert(fields.tail, 0));
+            vector_add(&pos_verts, parse_vec3_vert(fields.tail));
             m.nverts = vector_size(pos_verts);
         }else if(equals(S("vn"), kind))
         {
-            vector_add(&norm_verts, parsevert(fields.tail, 0));
+            vector_add(&norm_verts, parse_vec3_vert(fields.tail));
             m.nnorms = vector_size(norm_verts);
         }else if(equals(S("vt"), kind))
         {
-            vector_add(&uv_verts, parsevert(fields.tail, 1));
+            vector_add(&uv_verts, parse_vec2_vert(fields.tail));
             m.nuvs = vector_size(uv_verts);
         }
         else if(equals(S("f"), kind))
@@ -81,13 +88,15 @@ Model loadObjFromFile(const char *path)
         }
     }
 
+    
+
     unsigned int *vertex_indices = vector_create();
     unsigned int *normal_indices = vector_create();
     unsigned int *uv_indices = vector_create();
 
-    Vert *out_vertex = vector_create();
-    Vert *out_norm = vector_create();
-    Vert *out_uv = vector_create();
+    vec3_vert *out_vertex = vector_create();
+    vec3_vert *out_norm = vector_create();
+    vec2_vert *out_uv = vector_create();
 
     for(int f = 0; f < pos_indices_index; f++)
     {
@@ -96,6 +105,8 @@ Model loadObjFromFile(const char *path)
             vector_add(&vertex_indices, _tmp_indices_vec[f].v[i]-1);
             vector_add(&normal_indices, _tmp_indices_vec[f].n[i]-1);
             vector_add(&uv_indices, _tmp_indices_vec[f].t[i]-1);
+
+           
         }
     }
 
@@ -111,18 +122,20 @@ Model loadObjFromFile(const char *path)
             int vertex_indices_index = vertex_indices[v+i];
             int normal_indices_index = normal_indices[v+i];
             int uv_indices_index = uv_indices[v+i];
-
-
-
             vector_add(&out_vertex, pos_verts[vertex_indices_index]);
             vector_add(&out_norm, norm_verts[normal_indices_index]);
             vector_add(&out_uv, uv_verts[uv_indices_index]);
         }
     }
 
+
+
     m.out_verts = out_vertex;
+    m.nverts = vector_size(out_vertex);
     m.out_norms = out_norm;
+    m.nnorms = vector_size(out_norm);
     m.out_uvs = out_uv;
+    m.nuvs = vector_size(out_uv);
 
 
     free(f_content);
@@ -147,14 +160,14 @@ Mesh createMeshFromModel(Model m)
 
     unsigned int *out_indices = vector_create();
 
-    Vert *out_vertex = vector_create();
-    Vert *out_norm = vector_create();
-    Vert *out_uv = vector_create();
+    vec3_vert *out_vertex = vector_create();
+    vec3_vert *out_norm = vector_create();
+    vec2_vert *out_uv = vector_create();
     int found_index = -1;
-    /*
+    
     vector_add(&out_vertex, m.out_verts[0]);
     vector_add(&out_norm, m.out_norms[0]);
-    vector_add(&out_uv, m.out_uvs[0]);*/
+    vector_add(&out_uv, m.out_uvs[0]);
 
     mesh.out_verts = out_vertex;
     mesh.out_norms = out_norm;
@@ -172,11 +185,12 @@ Mesh createMeshFromModel(Model m)
     }
 
 
-    for(int i =0; i < m.n_face; i++)
+    for(int i =0; i < m.nverts; i++)
     {
         if(compareVertex(mesh, m, i))
         {
             vector_add(&out_indices, i);
+            //
             mesh.indices = out_indices;
         }else
         {
@@ -184,14 +198,11 @@ Mesh createMeshFromModel(Model m)
             vector_add(&out_norm, m.out_norms[i]);
             vector_add(&out_uv, m.out_uvs[i]);
 
-
-
             mesh.out_verts = out_vertex;
-            mesh.out_norms = out_norm;
-            mesh.out_uvs = out_uv;
-
             mesh.nverts = vector_size(out_vertex);
+            mesh.out_norms = out_norm;
             mesh.nnorms = vector_size(out_norm);
+            mesh.out_uvs = out_uv;
             mesh.nuvs = vector_size(out_uv);
 
             vector_add(&out_indices,  mesh.nverts -1);
@@ -217,9 +228,8 @@ static int compareVertex(Mesh mesh, Model model, int index)
         mesh.out_norms[index].v[1] == model.out_norms[index].v[1] &&
         mesh.out_norms[index].v[2] == model.out_norms[index].v[2] &&
 
-        mesh.out_uvs[index].t[0] == model.out_uvs[index].t[0] &&
-        mesh.out_uvs[index].t[1] == model.out_uvs[index].t[1] &&
-        mesh.out_uvs[index].t[2] == model.out_uvs[index].t[2]
+        mesh.out_uvs[index].v[0] == model.out_uvs[index].v[0] &&
+        mesh.out_uvs[index].v[1] == model.out_uvs[index].v[1]
     );
 }
 
@@ -274,9 +284,19 @@ static float parseflot(Str s)
     return sign * r * (exp ? exp: 1.0f);
 }
 
-static Vert parsevert(Str s, int type)
+static vec2_vert parse_vec2_vert(Str s)
 {
-    Vert r = {0};
+    vec2_vert r = {0};
+    Cut c = cut(trimleft(s), ' ');
+    r.v[0] = parseflot(c.head);
+    c = cut(trimleft(c.tail), ' ');
+    r.v[1] = parseflot(c.head);
+
+    return r;
+}
+static vec3_vert parse_vec3_vert(Str s)
+{
+    vec3_vert r = {0};
 
     Cut c = cut(trimleft(s), ' ');
     r.v[0] = parseflot(c.head);

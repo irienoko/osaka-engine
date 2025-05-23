@@ -61,7 +61,7 @@ int main(int argc, char **argv)
     deleteShader(fragmentShader);
 
     //end of load basic shader
-    Model m = loadObjFromFile("bin/models/cube.obj");
+    Model m = loadObjFromFile("bin/models/glock_oclock.obj");
     Mesh mesh = createMeshFromModel(m);
 
     unsigned int VAO, EBO;
@@ -79,10 +79,20 @@ int main(int argc, char **argv)
         for (int j =0; j < 3; j++)
         {
             vector_add(&packed_vertex,  mesh.out_verts[i].v[j]);
-            vector_add(&packed_uv,  mesh.out_verts[i].t[j]);
             vector_add(&packed_normal,  mesh.out_norms[i].v[j]);
         }
     }
+
+    for(int i = 0; i < mesh.nuvs; i++)
+    {
+        for(int k = 0; k < 2; k++)
+        {
+            vector_add(&packed_uv,  mesh.out_uvs[i].v[k]);
+            printf("%f\n",  mesh.out_uvs[i].v[k]);
+        }
+    }
+
+
 
     unsigned vertex_buffer;
     glGenBuffers(1, &vertex_buffer);
@@ -97,7 +107,7 @@ int main(int argc, char **argv)
     glGenBuffers(1, &uv_buffer);
     glBindBuffer(GL_ARRAY_BUFFER, uv_buffer);
 
-    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_uv) * sizeof(float), &packed_vertex[0], GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_uv) * sizeof(float), &packed_uv[0], GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
@@ -112,22 +122,12 @@ int main(int argc, char **argv)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     int width, height, nrChannels;
-    unsigned char *data = stbi_load("bin/images/wall.jpg", &width, &height, &nrChannels, 0);
+    unsigned char *data = stbi_load("bin/images/glock_oclock_tex.jpg", &width, &height, &nrChannels, 0);
     if (data)
     {
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
         glGenerateMipmap(GL_TEXTURE_2D);
     }
-    /*
-    unsigned norm_buffer;
-    glGenBuffers(1, &norm_buffer);
-    glBindBuffer(GL_ARRAY_BUFFER, norm_buffer);
-
-    glBufferData(GL_ARRAY_BUFFER, vector_size(packed_normal) * sizeof(float), &packed_normal[0], GL_STATIC_DRAW);
-
-    glEnableVertexAttribArray(3);
-    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);*/
-
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, mesh.indices_num * sizeof(GL_UNSIGNED_INT),& mesh.indices[0], GL_STATIC_DRAW);
